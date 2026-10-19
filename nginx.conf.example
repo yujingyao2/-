@@ -1,0 +1,37 @@
+# 把 root 改成实际目录；上线必须使用 HTTPS，
+# 因为 Pointer Lock / Fullscreen 在普通 http（localhost 除外）下会被限制。
+server {
+    listen 443 ssl http2;
+    server_name example.com;
+    root /var/www/yipaidaodi;
+    index index.html;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    gzip on;
+    gzip_types text/html text/css text/javascript application/javascript application/json image/svg+xml;
+
+    add_header X-Content-Type-Options nosniff;
+    add_header Referrer-Policy no-referrer;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()";
+
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location /js/vendor/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    location /assets/audio/ {
+        add_header Cache-Control "public, max-age=86400";
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

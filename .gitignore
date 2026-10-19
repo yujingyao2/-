@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Local Vercel project metadata
+.vercel/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.log

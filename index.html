@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="一拍到底：浏览器里的第一人称 3D 羽毛球游戏。">
+  <meta name="theme-color" content="#0f1720">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <title>一拍到底 · 第一人称羽毛球</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="boot" role="status" aria-live="polite">
+    <div class="boot-brand">一拍到底</div>
+    <div class="boot-ring" aria-hidden="true"></div>
+    <p id="boot-status">正在准备球场…</p>
+    <button id="boot-retry" class="ghost" hidden>重新加载</button>
+  </div>
+
+  <canvas id="game" aria-label="第一人称羽毛球场"></canvas>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <div id="hud">
+    <div id="score">0 : 0</div>
+    <div id="grip">正手</div>
+    <div id="msg" role="status" aria-live="polite"></div>
+    <div id="fps">-- 帧</div>
+    <div id="crosshair"><span></span><span></span></div>
+    <div id="meter">
+      <div id="power"><div id="power-fill"></div></div>
+      <div id="shot"></div>
+    </div>
+    <div id="gauge" class="on">
+      <div class="g-band" data-band="high"><em>高</em><span class="g-name"></span></div>
+      <div class="g-band" data-band="mid"><em>腰</em><span class="g-name"></span></div>
+      <div class="g-band" data-band="low"><em>低</em><span class="g-name"></span></div>
+      <div id="gauge-marker"></div>
+    </div>
+  </div>
+
+  <div id="tut">
+    <div class="tut-head"><span id="tut-step"></span><b id="tut-title"></b></div>
+    <p id="tut-body"></p>
+    <p id="tut-keys"></p>
+    <p class="tut-fb" id="tut-fb"></p>
+  </div>
+
+  <div id="keys" class="on">
+    <h3>怎么打</h3>
+    <p><b>WASD</b> 前后左右　<b>Shift</b> 加速跑</p>
+    <p><b>空格</b> 跳（跳起来打是<b>扣杀</b>）　<b>C</b> 蹲（蹲着打是<b>挑飞</b>）</p>
+    <p><b>F</b> 把拍面凑近看　<b>G</b> 全屏开关</p>
+    <p><b>鼠标</b> 转视角　<b>按住鼠标</b> 蓄力，松开挥拍</p>
+    <p><b>Q</b> 换握拍（正手 / 反手）　<b>E</b> 发球时抛球</p>
+    <p class="tip">打什么球 = 握拍方式 + 击球点高度</p>
+    <p class="tip">球高 → 高远球（站在网前是扑网）／球在腰上 → 平抽／球低 → 挑球</p>
+    <p class="tip">Esc 暂停 / 退出（只有 Esc 能退出）　H 收起</p>
+  </div>
+
+  <div id="paused" role="dialog" aria-modal="true" aria-label="暂停菜单">
+    <div class="paused-box">
+      <p class="paused-title">已暂停</p>
+      <button id="pause-resume">继续游戏</button>
+      <div class="pause-vol" id="pause-vol">
+        <label>音乐<input type="range" id="pause-music-vol" min="0" max="1" step="0.05" value="0.35"><b id="pause-music-val">35%</b></label>
+        <label>击球音效<input type="range" id="pause-sfx-vol" min="0" max="1" step="0.05" value="0.55"><b id="pause-sfx-val">55%</b></label>
+      </div>
+      <div class="diff-row pause-diff">
+        <span>对手难度</span>
+        <div class="diff-btns">
+          <button data-diff="low" title="反应慢，面对扣杀容易来不及">轻松</button>
+          <button data-diff="normal" class="on" title="会跑位，偶尔判断失误">普通</button>
+          <button data-diff="high" title="预判快，会扣杀和挑球">高手</button>
+        </div>
+      </div>
+      <button id="pause-skin" class="ghost">球拍皮肤</button>
+      <button id="pause-lessons" class="ghost">回到课程列表</button>
+      <button id="pause-menu" class="ghost">退出到菜单</button>
+      <p class="paused-tip">退出只在暂停菜单里，Esc 之外没有别的退出键</p>
+    </div>
+  </div>
+
+  <div id="over" role="dialog" aria-modal="true" aria-label="比赛结果">
+    <div class="over-box">
+      <p class="over-label">比赛结束</p>
+      <p class="over-score" id="over-score">0 : 0</p>
+      <p class="over-title" id="over-title">你赢了</p>
+      <button id="over-again">再来一局</button>
+      <button id="over-menu" class="ghost">回到主菜单</button>
+    </div>
+  </div>
+
+  <div id="lessons" role="dialog" aria-modal="true" aria-label="教学关卡">
+    <div class="lessons-box">
+      <h2>教学关卡</h2>
+      <p class="lessons-sub">选一节开始。打过的会打勾，随时可以重练；只想练手感就去自由练习。</p>
+      <div id="lesson-list"></div>
+      <div class="lessons-foot">
+        <button id="lesson-free" class="ghost">自由练习</button>
+        <button id="lesson-back" class="ghost">返回菜单</button>
+      </div>
+      <p class="lessons-tip">练习中按 Tab 回到这个列表</p>
+    </div>
+  </div>
+
+  <div id="menu" class="on">
+    <div class="menu-inner">
+      <div class="art">
+        <svg viewBox="0 0 240 150" role="img" aria-label="羽毛球和球拍">
+          <path d="M22 122 Q118 148 214 54" stroke="#8ff0d4" stroke-width="5" fill="none"
+                stroke-linecap="round" opacity="0.65"/>
+          <g transform="translate(168 44) rotate(-26)">
+            <rect x="-5" y="30" width="10" height="50" rx="5" fill="#33405a"/>
+            <rect x="-3" y="22" width="6" height="12" fill="#eef3f7"/>
+            <ellipse cx="0" cy="0" rx="27" ry="33" fill="rgba(255,255,255,0.13)"
+                     stroke="#eef3f7" stroke-width="5"/>
+            <g stroke="#dfe7ee" stroke-width="2" opacity="0.7">
+              <path d="M-18 -22 L18 22"/>
+              <path d="M-24 -10 L24 10"/>
+              <path d="M-24 10 L24 -10"/>
+              <path d="M-18 22 L18 -22"/>
+              <path d="M0 -33 L0 33"/>
+              <path d="M-27 0 L27 0"/>
+            </g>
+          </g>
+          <g transform="translate(62 84) rotate(22)">
+            <path d="M-15 20 L15 20 L9 -16 L-9 -16 Z" fill="#ffffff" opacity="0.94"/>
+            <path d="M-9 -16 L9 -16 L7 -32 L-7 -32 Z" fill="#f1f5f8"/>
+            <g stroke="#c9d4dd" stroke-width="2">
+              <path d="M-9 -16 L-7 -32"/>
+              <path d="M0 -16 L0 -32"/>
+              <path d="M9 -16 L7 -32"/>
+              <path d="M-15 20 L15 20"/>
+            </g>
+            <circle cx="0" cy="27" r="10" fill="#ffbe2e"/>
+            <circle cx="-3" cy="25" r="3" fill="#fff3d0"/>
+          </g>
+        </svg>
+      </div>
+
+      <h1>一拍到底</h1>
+      <p class="sub">第一人称羽毛球 · 先到 11 分</p>
+
+      <div class="menu-cols">
+        <div>
+          <h3>移动</h3>
+          <ul>
+            <li><b>W A S D</b> 前后左右</li>
+            <li><b>空格</b> 起跳（空中挥拍＝扣杀）</li>
+            <li><b>C</b> 蹲下（蹲着挥拍＝挑飞）</li>
+            <li><b>F</b> 凑近看拍面　<b>G</b> 全屏</li>
+            <li><b>Shift</b> 加速跑</li>
+            <li><b>鼠标</b> 转视角</li>
+          </ul>
+        </div>
+        <div>
+          <h3>挥拍</h3>
+          <ul>
+            <li><b>Q</b> 换握拍：正手 / 反手</li>
+            <li><b>E</b> 发球时抛球</li>
+            <li><b>按住左键</b> 蓄力，松开挥出</li>
+            <li>球<b>高</b>时挥 → 高远球 / 扑网</li>
+            <li>球在<b>腰</b>上 → 平抽</li>
+            <li>球<b>低</b>时挥 → 挑球</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="sens-row">
+        <span>鼠标灵敏度</span>
+        <input type="range" id="sens" min="0.3" max="2.5" step="0.1" value="1">
+        <b id="sens-val">1.0×</b>
+      </div>
+
+      <div class="diff-row">
+        <span>对手难度</span>
+        <div class="diff-btns">
+          <button data-diff="low" title="反应慢，面对扣杀容易来不及">轻松</button>
+          <button data-diff="normal" class="on" title="会跑位，偶尔判断失误">普通</button>
+          <button data-diff="high" title="预判快，会扣杀和挑球">高手</button>
+        </div>
+      </div>
+      <p class="diff-hint" id="diff-hint">会跑位，偶尔判断失误</p>
+
+      <div class="vol-row">
+        <label><span>音乐</span><input type="range" id="music-vol" min="0" max="1" step="0.05" value="0.35"><b id="music-val">35%</b></label>
+        <label><span>击球音效</span><input type="range" id="sfx-vol" min="0" max="1" step="0.05" value="0.55"><b id="sfx-val">55%</b></label>
+      </div>
+
+      <div class="start-row">
+        <button id="menu-tutorial" class="ghost">教学关卡</button>
+        <button id="menu-start">开始比赛</button>
+      </div>
+      <button id="menu-skin" class="skin-link">球拍皮肤 · 改颜色 / 自己画图案</button>
+      <p class="foot">开始后自动进入全屏并接管键盘，浏览器不会再抢 Ctrl+W 这类快捷键；Esc 退出，G 切换全屏</p>
+      <p class="foot dim">蹲下推荐用 C：Ctrl 也能用，但 Ctrl+W 在浏览器里是关标签页、不是全屏时拦不住</p>
+      <p class="foot dim" id="load-note" role="status" aria-live="polite">正在准备球场…</p>
+    </div>
+  </div>
+
+  <div id="skin" role="dialog" aria-modal="true" aria-label="球拍皮肤">
+    <div class="skin-box">
+      <div class="skin-head">
+        <div>
+          <h2>球拍皮肤</h2>
+          <p>改颜色，也能在拍网和拍杆上随手画。应用后开局按 F，拍面会凑到眼前给你看。</p>
+        </div>
+        <button id="skin-close" class="skin-x" aria-label="关闭">×</button>
+      </div>
+
+      <div class="skin-library">
+        <div class="skin-library-head">
+          <span>皮肤存档</span>
+          <input id="skin-name" maxlength="12" placeholder="给皮肤起个名字（最多 12 字）">
+        </div>
+        <div id="skin-list" class="skin-list"></div>
+        <div class="skin-library-actions">
+          <button id="skin-save-new" class="ghost skin-mini">存为新皮肤</button>
+          <button id="skin-save-current" class="ghost skin-mini">保存到当前</button>
+          <button id="skin-delete" class="ghost skin-mini">删除</button>
+        </div>
+      </div>
+
+      <div class="skin-body">
+        <div class="skin-preview">
+          <canvas id="skin-preview" width="260" height="380"></canvas>
+          <p>实时预览</p>
+        </div>
+
+        <div class="skin-right">
+          <div class="skin-colors">
+            <label>拍框<input type="color" id="skin-frame" value="#f4f7f9"></label>
+            <label>拍线<input type="color" id="skin-strings" value="#cede4a"></label>
+            <label>中杆<input type="color" id="skin-shaft" value="#eef3f7"></label>
+            <label>握把<input type="color" id="skin-grip" value="#191b1f"></label>
+          </div>
+
+          <div class="skin-tools">
+            <label class="skin-brush-label">画笔<input type="color" id="skin-brush" value="#ff6b4a"></label>
+            <label class="skin-size-label">粗细<input type="range" id="skin-size" min="2" max="20" step="1" value="8"></label>
+            <button id="skin-erase" class="ghost skin-mini">橡皮</button>
+          </div>
+
+          <div class="skin-draw">
+            <div class="net-wrap">
+              <canvas id="skin-net-canvas" width="240" height="240"></canvas>
+              <span>拍网 · 直接画</span>
+            </div>
+            <div class="shaft-wrap">
+              <canvas id="skin-shaft-canvas" width="96" height="320"></canvas>
+              <span>拍杆</span>
+            </div>
+          </div>
+
+          <div class="skin-clears">
+            <button id="skin-clear-net" class="ghost skin-mini">清空拍网</button>
+            <button id="skin-clear-shaft" class="ghost skin-mini">清空拍杆</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="skin-foot">
+        <button id="skin-reset" class="ghost">恢复默认</button>
+        <button id="skin-apply">应用并保存</button>
+      </div>
+      <p class="skin-note" id="skin-note" role="status" aria-live="polite">点上方存档切换皮肤；预设不能覆盖，改完可以存成自己的皮肤。</p>
+    </div>
+  </div>
+
+  <div id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="confirm-box">
+      <h3 id="confirm-title">确认操作</h3>
+      <p id="confirm-body"></p>
+      <div class="confirm-actions">
+        <button id="confirm-cancel" class="ghost">取消</button>
+        <button id="confirm-ok">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/boot.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
